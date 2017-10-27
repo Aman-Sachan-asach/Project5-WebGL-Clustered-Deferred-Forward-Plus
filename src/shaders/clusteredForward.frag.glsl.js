@@ -15,6 +15,8 @@ export default function(params) {
   uniform float u_screenHeight;
   uniform float camNear;
   uniform float u_zStride;
+  uniform int u_gammaCorrection;
+  uniform int u_shaderMode;
 
   varying vec3 f_position;
   varying vec3 f_normal;
@@ -28,6 +30,8 @@ export default function(params) {
   const int maxLightsPerCluster = int(${params.maxLightsPerCluster});
   const int numTexelsInColumn = int(ceil(float(${params.maxLightsPerCluster}+1) * 0.25)); 
 
+  const vec3 specColor = vec3(0.1, 0.1, 0.1);
+  const float shininess = 300.0;
   const float screenGamma = 2.2; // Assume the monitor is calibrated to the sRGB color space
 
   vec3 applyNormalMap(vec3 geomnor, vec3 normap) 
@@ -99,6 +103,7 @@ export default function(params) {
     vec3 normal = applyNormalMap(f_normal, normap);
 
     vec3 fragColor = vec3(0.0);
+    vec3 cameraPos = vec3(u_viewMatrix[3].rgb);
 
     vec3 fpos = vec3(u_viewMatrix*vec4(f_position, 1.0)); //f_position in viewspace
     fpos.z = -fpos.z;
@@ -121,7 +126,7 @@ export default function(params) {
     for (int i = 0; i < numLights; ++i) 
     {
       if(i >= clusterNumLights)
-      {
+      {        
         break;
       }
 
@@ -134,18 +139,68 @@ export default function(params) {
       float lightIntensity = cubicGaussian(2.0 * lightDistance / light.radius);
       float lambertTerm = max(dot(L, normal), 0.0);
 
-      fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity);
+      if(u_shaderMode == 0)
+      {
+        //------------- Lambertian ------------------
+        fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity);
+        //-------------------------------------------
+      }
+      else if(u_shaderMode == 1)
+      {
+        //---------- Blinn-Phong Specular -----------
+        float specular;
+        if(lambertTerm > 0.0)
+        {        
+          vec3 viewDir = normalize(-f_position);
+          vec3 halfDir = normalize(L + viewDir);
+          float specAngle = max(dot(halfDir, normal), 0.0);
+          specular = pow(specAngle, shininess);
+        }
+
+        fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity) + specular*specColor;
+        //-------------------------------------------
+      }
+      else
+      {
+        //----------- Toon Shading ------------------
+        float discrete_lambertTerm = lambertTerm*5.0;
+        discrete_lambertTerm = floor(discrete_lambertTerm);
+        discrete_lambertTerm = discrete_lambertTerm/5.0;
+
+        float blackoutline = abs(dot( normal, normalize(cameraPos - f_position)));
+        blackoutline = blackoutline * 10.0;
+        blackoutline = floor(blackoutline)/10.0;
+        if(blackoutline < 0.1) 
+        {
+          blackoutline = 0.1;
+        }
+        else 
+        {
+          blackoutline = 1.0;
+        }
+
+        // With Black outline -- looks terrible 
+        // fragColor += blackoutline * albedo * discrete_lambertTerm * light.color * vec3(lightIntensity);
+        // Without Black outline
+        fragColor += albedo * discrete_lambertTerm * light.color * vec3(lightIntensity);
+        //-------------------------------------------
+      }
     }
 
     const vec3 ambientLight = vec3(0.025);
     fragColor += albedo * ambientLight;
 
-    // Gamma Correction
-    vec3 colorGammaCorrected = pow(fragColor, vec3(1.0/screenGamma));
-    gl_FragColor = vec4(colorGammaCorrected, 1.0);
-
-    // No Gamma Correction
-    // gl_FragColor = vec4(fragColor, 1.0);
+    if(u_gammaCorrection == 1)
+    {
+      // Gamma Correction
+      vec3 colorGammaCorrected = pow(fragColor, vec3(1.0/screenGamma));
+      gl_FragColor = vec4(colorGammaCorrected, 1.0);
+    }
+    else
+    {
+      // No Gamma Correction
+      gl_FragColor = vec4(fragColor, 1.0);
+    }
   }
   `;
 }

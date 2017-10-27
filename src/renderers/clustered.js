@@ -3,7 +3,6 @@
 // Enums in javascript --> https://stijndewitt.com/2014/01/26/enums-in-javascript/
 
 import { mat4, vec4, vec3 } from 'gl-matrix';
-import { NUM_LIGHTS } from '../scene';
 import TextureBuffer from './textureBuffer';
 import AABB from '../AABB'
 

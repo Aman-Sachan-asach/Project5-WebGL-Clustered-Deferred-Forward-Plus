@@ -16,6 +16,9 @@ export default function(params) {
   uniform float camNear;
   uniform float u_zStride;
 
+  uniform int u_gammaCorrection;
+  uniform int u_shaderMode;
+
   varying vec2 f_uv;
 
   const int numXSlices = int(${params.numXSlices});
@@ -111,10 +114,7 @@ export default function(params) {
     vec3 normal = vec3(u_inverseViewMatrix*vec4(result, 0.0));
 
     // //if using uncompressed normals
-    // vec3 g_buf_normal = vec3(gb2.r, gb2.g, gb2.b);
-    // g_buf_normal -= 0.5;
-    // g_buf_normal *= 2.0;
-    // vec3 normal = vec3(u_inverseViewMatrix*vec4(g_buf_normal, 0.0));
+    // vec3 normal = vec3(gb2.r, gb2.g, gb2.b);
 
     vec3 fragColor = vec3(0.0);
 
@@ -152,58 +152,70 @@ export default function(params) {
       float lightIntensity = cubicGaussian(2.0 * lightDistance / light.radius);
       float lambertTerm = max(dot(L, normal), 0.0);
 
-      //------------- Lambertian ------------------
-      // fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity);
-      //-------------------------------------------
-
-      //---------- Blinn-Phong Specular -----------
-      // float specular;
-      // if(lambertTerm > 0.0)
-      // {        
-      //   vec3 viewDir = normalize(-f_position);
-      //   vec3 halfDir = normalize(L + viewDir);
-      //   float specAngle = max(dot(halfDir, normal), 0.0);
-      //   specular = pow(specAngle, shininess);
-      // }
-
-      // fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity) + specular*specColor;
-      //-------------------------------------------
-
-      //----------- Toon Shading ------------------
-      float discrete_lambertTerm = lambertTerm*5.0;
-      discrete_lambertTerm = floor(discrete_lambertTerm);
-      discrete_lambertTerm = discrete_lambertTerm/5.0;
-
-      float blackoutline = abs(dot( normal, normalize(cameraPos - f_position)));
-      blackoutline = blackoutline * 10.0;
-      blackoutline = floor(blackoutline)/10.0;
-      if(blackoutline < 0.1) 
+      if(u_shaderMode == 0)
       {
-        blackoutline = 0.1;
+        //------------- Lambertian ------------------
+        fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity);
+        //-------------------------------------------
       }
-      else 
+      else if(u_shaderMode == 1)
       {
-        blackoutline = 1.0;
-      }
+        //---------- Blinn-Phong Specular -----------
+        float specular;
+        if(lambertTerm > 0.0)
+        {        
+          vec3 viewDir = normalize(-f_position);
+          vec3 halfDir = normalize(L + viewDir);
+          float specAngle = max(dot(halfDir, normal), 0.0);
+          specular = pow(specAngle, shininess);
+        }
 
-      // With Black outline -- looks terrible 
-      // fragColor += blackoutline * albedo * discrete_lambertTerm * light.color * vec3(lightIntensity);
-      // Without Black outline
-      fragColor += albedo * discrete_lambertTerm * light.color * vec3(lightIntensity);
-      //-------------------------------------------
+        fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity) + specular*specColor;
+        //-------------------------------------------
+      }
+      else
+      {
+        //----------- Toon Shading ------------------
+        float discrete_lambertTerm = lambertTerm*5.0;
+        discrete_lambertTerm = floor(discrete_lambertTerm);
+        discrete_lambertTerm = discrete_lambertTerm/5.0;
+
+        float blackoutline = abs(dot( normal, normalize(cameraPos - f_position)));
+        blackoutline = blackoutline * 10.0;
+        blackoutline = floor(blackoutline)/10.0;
+        if(blackoutline < 0.1) 
+        {
+          blackoutline = 0.1;
+        }
+        else 
+        {
+          blackoutline = 1.0;
+        }
+
+        // With Black outline -- looks terrible 
+        // fragColor += blackoutline * albedo * discrete_lambertTerm * light.color * vec3(lightIntensity);
+        // Without Black outline
+        fragColor += albedo * discrete_lambertTerm * light.color * vec3(lightIntensity);
+        //-------------------------------------------
+      }
     }
 
     const vec3 ambientLight = vec3(0.025);
     fragColor += albedo * ambientLight;
 
-    //----------- No Gamma Correction -------------
-    //gl_FragColor = vec4(fragColor, 1.0);
-    //-------------------------------------------
-
-    //----------- Gamma Correction ----------------
-    vec3 colorGammaCorrected = pow(fragColor, vec3(1.0/screenGamma));
-    gl_FragColor = vec4(colorGammaCorrected, 1.0);
-    //-------------------------------------------
+    if(u_gammaCorrection == 1)
+    {
+      //----------- Gamma Correction --------------
+      vec3 colorGammaCorrected = pow(fragColor, vec3(1.0/screenGamma));
+      gl_FragColor = vec4(colorGammaCorrected, 1.0);
+      //-------------------------------------------
+    }
+    else
+    {
+      //----------- No Gamma Correction -----------
+      gl_FragColor = vec4(fragColor, 1.0);
+      //-------------------------------------------
+    }
   }
   `;
 }

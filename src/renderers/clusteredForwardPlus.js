@@ -1,32 +1,36 @@
 import { gl } from '../init';
 import { mat4, vec4, vec3 } from 'gl-matrix';
 import { loadShaderProgram } from '../utils';
-import { NUM_LIGHTS } from '../scene';
+// import { NUM_LIGHTS } from '../scene';
 import vsSource from '../shaders/clusteredForward.vert.glsl';
 import fsSource from '../shaders/clusteredForward.frag.glsl.js';
 import TextureBuffer from './textureBuffer';
 import ClusteredRenderer from './clustered';
 
 export default class ClusteredForwardPlusRenderer extends ClusteredRenderer {
-  constructor(xSlices, ySlices, zSlices, camera, MAX_LIGHTS_PER_CLUSTER) {
-    super(xSlices, ySlices, zSlices, camera, MAX_LIGHTS_PER_CLUSTER);
+  constructor(xSlices, ySlices, zSlices, camera, _numLightsPassedIn, _maxLightsPerClusterPassedIn, _gammaCorrection, _shaderType) {
+    super(xSlices, ySlices, zSlices, camera, _maxLightsPerClusterPassedIn);
 
     // Create a texture to store light data
-    this._lightTexture = new TextureBuffer(NUM_LIGHTS, 8);
+    this._lightTexture = new TextureBuffer(_numLightsPassedIn, 8);
     
     this._shaderProgram = loadShaderProgram(vsSource, fsSource({
-      numLights: NUM_LIGHTS,
+      numLights: _numLightsPassedIn,
       numXSlices: xSlices,
       numYSlices: ySlices,
       numZSlices: zSlices,
-      maxLightsPerCluster: MAX_LIGHTS_PER_CLUSTER
+      maxLightsPerCluster: _maxLightsPerClusterPassedIn
     }), {
       uniforms: ['u_viewProjectionMatrix', 'u_viewMatrix', 
                  'u_screenHeight', 'u_screenWidth', 'u_zStride', 'u_camNear',
-                 'u_colmap', 'u_normap', 'u_lightbuffer', 'u_clusterbuffer'],
+                 'u_colmap', 'u_normap', 'u_lightbuffer', 'u_clusterbuffer',
+                 'u_gammaCorrection', 'u_shaderMode'],
       attribs: ['a_position', 'a_normal', 'a_uv'],
     });
 
+    this._numLights = _numLightsPassedIn;
+    this.gammaCorrection = _gammaCorrection;
+    this.shaderType = _shaderType;
     this._projectionMatrix = mat4.create();
     this._viewMatrix = mat4.create();
     this._viewProjectionMatrix = mat4.create();
@@ -40,10 +44,10 @@ export default class ClusteredForwardPlusRenderer extends ClusteredRenderer {
     mat4.multiply(this._viewProjectionMatrix, this._projectionMatrix, this._viewMatrix);
 
     // Update cluster texture which maps from cluster index to light list
-    this.updateClusters(camera, this._viewMatrix, scene, NUM_LIGHTS);
+    this.updateClusters(camera, this._viewMatrix, scene, this._numLights);
     
     // Update the buffer used to populate the texture packed with light data
-    for (let i = 0; i < NUM_LIGHTS; ++i) {
+    for (let i = 0; i < this._numLights; ++i) {
       this._lightTexture.buffer[this._lightTexture.bufferIndex(i, 0) + 0] = scene.lights[i].position[0];
       this._lightTexture.buffer[this._lightTexture.bufferIndex(i, 0) + 1] = scene.lights[i].position[1];
       this._lightTexture.buffer[this._lightTexture.bufferIndex(i, 0) + 2] = scene.lights[i].position[2];
@@ -89,6 +93,9 @@ export default class ClusteredForwardPlusRenderer extends ClusteredRenderer {
     //upload z_stride -- this is constant
     gl.uniform1f (this._shaderProgram.u_zStride, this.zStride);
     gl.uniform1f (this._shaderProgram.u_camNear, camera.near);
+    // upload gammaCorrection and shaderMode
+    gl.uniform1i (this._shaderProgram.u_gammaCorrection, this.gammaCorrection);
+    gl.uniform1i (this._shaderProgram.u_shaderMode, this.shaderType);
 
     // Draw the scene. This function takes the shader program so that the model's textures can be bound to the right inputs
     scene.draw(this._shaderProgram);

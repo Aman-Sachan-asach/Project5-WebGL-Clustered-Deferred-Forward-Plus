@@ -7,27 +7,42 @@ WebGL Clustered Deferred and Forward+ Shading
 * Tested on: Windows 10, Intel(R) Xeon(R) CPU E5-1630 v4 @ 3.7GHz (8 CPUs) 32GB RAM, 
 			GTX 1070 8081MB (Lab Machine)
 
-### Live Online
+## Live Online
 
-[![](img/thumb.png)](http://TODO.github.io/Project5B-WebGL-Deferred-Shading)
+[![](readmeImages/LiveDemoImage.png)](http://amansachan.com/WebGL-Clustered-Deferred-Forward-Plus/)
 
-### Demo Video/GIF
+## Demo Video/GIF
 
-[![](img/video.png)](TODO)
+[![](readmeImages/video.png)](TODO)
 
-### OverView
-
+## OverView
+//2050 lights at 60 FPS
 ## Features
 
 ### Forward Shading Model
 
-### Clustering
+![](readmeImages/NumLightsComparison.png)
+
+![](readmeImages/NumLights_table.png)
 
 ### Clustered Forward+ Shading Model
 
 ### Clustered Deferred Shading Model
 
+### Clustering
+
+![](readmeImages/Clustering_depth_Slicing.png)
+
+![](readmeImages/false-positive-diagram.jpg)
+
+![](readmeImages/PointLightCulling.png)
+
 ### Optimizations
+
+![](readmeImages/OptimizationComparison.png)
+
+![](readmeImages/OptimizationComparison_table.png)
+
 #### Using Two G-buffers (use total 8 channels) - Pack values together into vec4s
 #### 2 Component Normals
 
@@ -35,7 +50,9 @@ WebGL Clustered Deferred and Forward+ Shading
 #### Toon Shading
 #### Blinn-Phong
 
-### Credits
+## Debug Views
+
+## Credits
 
 * [Three.js](https://github.com/mrdoob/three.js) by [@mrdoob](https://github.com/mrdoob) and contributors
 * [stats.js](https://github.com/mrdoob/stats.js) by [@mrdoob](https://github.com/mrdoob) and contributors

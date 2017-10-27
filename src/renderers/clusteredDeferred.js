@@ -1,7 +1,7 @@
 import { gl, WEBGL_draw_buffers, canvas } from '../init';
 import { mat4, vec4 } from 'gl-matrix';
 import { loadShaderProgram, renderFullscreenQuad } from '../utils';
-import { NUM_LIGHTS } from '../scene';
+// import { NUM_LIGHTS } from '../scene';
 import toTextureVert from '../shaders/deferredToTexture.vert.glsl';
 import toTextureFrag from '../shaders/deferredToTexture.frag.glsl';
 import QuadVertSource from '../shaders/quad.vert.glsl';
@@ -12,13 +12,13 @@ import ClusteredRenderer from './clustered';
 export const NUM_GBUFFERS = 2;
 
 export default class ClusteredDeferredRenderer extends ClusteredRenderer {
-  constructor(xSlices, ySlices, zSlices, camera, MAX_LIGHTS_PER_CLUSTER) {
-    super(xSlices, ySlices, zSlices, camera, MAX_LIGHTS_PER_CLUSTER);
+  constructor(xSlices, ySlices, zSlices, camera, _numLightsPassedIn, _maxLightsPerClusterPassedIn, _gammaCorrection, _shaderType) {
+    super(xSlices, ySlices, zSlices, camera, _maxLightsPerClusterPassedIn);
     
     this.setupDrawBuffers(canvas.width, canvas.height);
     
     // Create a texture to store light data
-    this._lightTexture = new TextureBuffer(NUM_LIGHTS, 8);
+    this._lightTexture = new TextureBuffer(_numLightsPassedIn, 8);
     
     this._progCopy = loadShaderProgram(toTextureVert, toTextureFrag, {
       uniforms: ['u_viewProjectionMatrix', 'u_viewMatrix', 'u_colmap', 'u_normap'],
@@ -26,20 +26,24 @@ export default class ClusteredDeferredRenderer extends ClusteredRenderer {
     });
 
     this._progShade = loadShaderProgram(QuadVertSource, fsSource({
-      numLights: NUM_LIGHTS,
+      numLights: _numLightsPassedIn,
       numGBuffers: NUM_GBUFFERS,
       numXSlices: xSlices,
       numYSlices: ySlices,
       numZSlices: zSlices,
-      maxLightsPerCluster: MAX_LIGHTS_PER_CLUSTER
+      maxLightsPerCluster: _maxLightsPerClusterPassedIn
     }), {
       uniforms: ['u_gbuffers[0]', 'u_gbuffers[1]', 'u_gbuffers[2]', 'u_gbuffers[3]',
                  'u_viewProjectionMatrix', 'u_inverseViewMatrix', 'u_viewMatrix', 
                  'u_screenHeight', 'u_screenWidth', 'u_zStride', 'u_camNear',
-                 'u_lightbuffer', 'u_clusterbuffer'],
+                 'u_lightbuffer', 'u_clusterbuffer',
+                 'u_gammaCorrection', 'u_shaderMode'],
       attribs: ['a_uv'],
     });
 
+    this._numLights = _numLightsPassedIn;
+    this.gammaCorrection = _gammaCorrection;
+    this.shaderType = _shaderType;
     this._projectionMatrix = mat4.create();
     this._viewMatrix = mat4.create();
     this._inverseViewMatrix = mat4.create();
@@ -139,11 +143,8 @@ export default class ClusteredDeferredRenderer extends ClusteredRenderer {
     // Draw the scene. This function takes the shader program so that the model's textures can be bound to the right inputs
     scene.draw(this._progCopy);
     
-    // Update cluster texture which maps from cluster index to light list
-    this.updateClusters(camera, this._viewMatrix, scene, NUM_LIGHTS);
-    
     // Update the buffer used to populate the texture packed with light data
-    for (let i = 0; i < NUM_LIGHTS; ++i) {
+    for (let i = 0; i < this._numLights; ++i) {
       this._lightTexture.buffer[this._lightTexture.bufferIndex(i, 0) + 0] = scene.lights[i].position[0];
       this._lightTexture.buffer[this._lightTexture.bufferIndex(i, 0) + 1] = scene.lights[i].position[1];
       this._lightTexture.buffer[this._lightTexture.bufferIndex(i, 0) + 2] = scene.lights[i].position[2];
@@ -156,6 +157,9 @@ export default class ClusteredDeferredRenderer extends ClusteredRenderer {
     // Update the light texture
     this._lightTexture.update();
 
+    // Update cluster texture which maps from cluster index to light list
+    this.updateClusters(camera, this._viewMatrix, scene, this._numLights);
+    
     // Bind the default null framebuffer which is the screen
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
@@ -188,6 +192,9 @@ export default class ClusteredDeferredRenderer extends ClusteredRenderer {
     //upload z_stride -- this is constant
     gl.uniform1f (this._progShade.u_zStride, this.zStride);
     gl.uniform1f (this._progShade.u_camNear, camera.near);
+    // upload gammaCorrection and shaderMode
+    gl.uniform1i (this._progShade.u_gammaCorrection, this.gammaCorrection);
+    gl.uniform1i (this._progShade.u_shaderMode, this.shaderType);
 
     // Bind g-buffers
     const firstGBufferBinding = 5; // You may have to change this if you use other texture slots
